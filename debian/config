@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+. /usr/share/debconf/confmodule
+
+db_input high redhawk-device-gpp/create-gpp-node || true
+db_get redhawk-device-gpp/create-gpp-node
+if [ "$RET" = "true" ] ; then
+    db_input medium redhawk-device-gpp/domain_name || true
+fi
+db_go || true
+

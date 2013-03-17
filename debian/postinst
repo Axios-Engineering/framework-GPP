@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -e
+
+. /usr/share/debconf/confmodule
+. /etc/profile.d/redhawk.sh
+
+SDRROOT=/var/redhawk/sdr
+    
+db_get redhawk-device-gpp/domain_name
+DOMAINNAME="$RET"
+
+if [ "$1" = configure ]; then
+    db_get redhawk-device-gpp/create-gpp-node
+    if [ "$RET" = "true" ] ; then
+        ${SDRROOT}/dev/devices/GPP/python/nodeconfig.py -v \
+            --clean \
+            --gpppath=/devices/GPP \
+	    --disableevents \
+	    --domainname=${DOMAINNAME} \
+	    --sdrroot=${SDRROOT} \
+	    --inplace
+    fi
+fi
+
+#DEBHELPER#

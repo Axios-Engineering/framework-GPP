@@ -1,0 +1,13 @@
+Template: redhawk-device-gpp/domain_name
+Type: string
+Default: REDHAWK_DEV
+Description: Provide a Domain Name for the GPP to use.
+ Provide the domain name the GPP will connect to.
+
+Template: redhawk-device-gpp/create-gpp-node
+Type: boolean
+Default: true
+Description: Create a GPP node?
+ Do you want to create a GPP node?
+ If you intend to use this system for development it is a good idea to answer Yes.
+
