@@ -307,4 +307,8 @@ with this program.  If not, see http://www.gnu.org/licenses/.
     <configurationkind kindtype="allocation"/>
     <configurationkind kindtype="event"/>
   </structsequence>
+  <simplesequence id="processorAllocatedLoadCapacity" mode="readonly" type="double">
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simplesequence>
 </properties>

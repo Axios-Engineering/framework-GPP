@@ -32,6 +32,7 @@ import threading
 import errno
 import select #@UnresolvedImport
 import sys
+import math
 
 from GPP_base import *
 
@@ -63,7 +64,9 @@ class GPP(GPP_base):
         self.mcastnicIngressCapacity = int(self.mcastnicIngressTotal * self.mcastNicThresholdDecimal)
         self.mcastnicEgressCapacity = int(self.mcastnicEgressTotal * self.mcastNicThresholdDecimal)
         self.init_processor_flags()
-
+        
+        self.processorAllocatedLoadCapacity = [ 0.0 for i in xrange(self.processor_cores) ]
+        self._assignedProcessors = {}
         self.next_property_event = None
 
         self.start()
@@ -79,21 +82,23 @@ class GPP(GPP_base):
         if self.isDisabled(): raise CF.Device.InvalidState("System is disabled")
 
         # TODO SR:448
-        priority = 0
-        stack_size = 4096
         invalidOptions = []
+	validOptions = {}
         for option in options:
             val = option.value.value()
             if option.id == CF.ExecutableDevice.PRIORITY_ID:
                 if ((not isinstance(val, int)) and (not isinstance(val, long))):
                     invalidOptions.append(option)
                 else:
-                    priority = val
+                    validOptions[CF.ExecutableDevice.PRIORITY_ID] = val
             elif option.id == CF.ExecutableDevice.STACK_SIZE_ID:
                 if ((not isinstance(val, int)) and (not isinstance(val, long))):
                     invalidOptions.append(option)
                 else:
-                    stack_size = val
+                    validOptions[CF.ExecutableDevice.STACK_SIZE_ID] = val
+	    else:
+		validOptions[option.id] = val
+        
         if len(invalidOptions) > 0:
             self._log.error("execute() received invalid options %s", invalidOptions)
             raise CF.ExecutableDevice.InvalidOptions(invalidOptions)
@@ -109,6 +114,33 @@ class GPP(GPP_base):
         os.chmod(command, stat.S_IEXEC | stat.S_IREAD | stat.S_IWRITE)
 
         args = []
+
+	allocatedLoad = validOptions.get(GPP_base.loadCapacity.id_, None)
+        
+        assignedProcessors = {}
+	if allocatedLoad:
+	    realAllocatedLoad = allocatedLoad / self.loadCapacityPerCore
+        
+            # At this point we essentially have the bin-packing problem, use
+            # first-fit-descending
+            
+            processorLoads = list(enumerate(self.processorAllocatedLoadCapacity))
+            processorLoads.sort(key=lambda x: x[0])
+            for processorNum, processorLoad in processorLoads:
+                free = 1.0 - processorLoad
+                amount = min(1.0, realAllocatedLoad)
+                if amount <= free:
+                    assignedProcessors[processorNum] = amount
+                    self.processorAllocatedLoadCapacity[processorNum] += amount
+                    realAllocatedLoad -= amount
+                if realAllocatedLoad <= 0:
+                    break
+            
+            if len(assignedProcessors) != math.ceil(allocatedLoad / self.loadCapacityPerCore):
+                raise CF.ExecutableDevice.ExecuteFail(CF.CF_NOTSET, "Failed to assign the sufficient number of processors")
+            self._log.debug("Assigned processors %s", assignedProcessors)
+            args.extend(["taskset", "-c", ",".join( [str(x) for x in assignedProcessors.keys()] )])
+
         if self.useScreen:
             os.environ["GPP_LD_LIBRARY_PATH"] = os.environ.get("LD_LIBRARY_PATH", "")
             # From the man page:
@@ -206,8 +238,9 @@ class GPP(GPP_base):
 
         # TODO: SR:455
         # We need to detect failures to execute
-
+        
         pid = sp.pid
+        self._assignedProcessors[pid] = assignedProcessors
         self._applications[pid] = sp
         # SR:449
         self._log.debug("execute() --> %s", pid)
@@ -254,7 +287,19 @@ class GPP(GPP_base):
                 lastFlush = time.time()
                 continue
         self._log.debug("Detected stdout/stderr EOS for component (pid %s)", proc.pid)
-
+        
+    def terminate(self, pid):
+        GPP_base.terminate(self, pid)
+        for processorNum, amount in self._assignedProcessors.get(pid, {}).items():
+            self.processorAllocatedLoadCapacity[processorNum] -= amount
+            if (self.processorAllocatedLoadCapacity[processorNum] < 0.0):
+                self._log.warning("Processor %s has allocated capacity below 0.0", self.processorAllocatedLoadCapacity[processorNum])
+                self.processorAllocatedLoadCapacity[processorNum] = 0.0
+            if (self.processorAllocatedLoadCapacity[processorNum] > 1.0):
+                self._log.warning("Processor %s has allocated capacity above 1.0", self.processorAllocatedLoadCapacity[processorNum])
+                self.processorAllocatedLoadCapacity[processorNum] = 1.0
+        self._log.debug("Current allocated processor load %s", self.processorAllocatedLoadCapacity)
+        
     def expandproperties(self, path, parameters):
         """Expand properties in the form @var@.  Unknown variables
         are left unchanged."""

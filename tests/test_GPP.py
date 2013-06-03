@@ -485,6 +485,40 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
             qr = self.comp_obj.query(qr)
             self.assertEqual(qr[0].value.value(), mcastnicEgressCapacity - (i*allocateEgressCapacity))    
     
+    def testLoadCapacitySandbox(self):
+        #######################################################################
+        # Launch the device
+        self.runGPP({"DEBUG_LEVEL": 4})
+        
+        #######################################################################
+        # Simulate regular component startup
+        # Verify that initialize nor configure throw errors
+        self.comp_obj.initialize()
+        configureProps = self.getPropertySet(kinds=("configure",), modes=("readwrite", "writeonly"), includeNil=False)
+        self.comp_obj.configure(configureProps)
+        
+        #=======================================================================
+        allocated = self.comp_obj.allocateCapacity([CF.DataType(id="DCE:72c1c4a9-2bcf-49c5-bafd-ae2c1d567056", value=any.to_any(1.5))])
+        self.assertEqual(allocated, True)
+
+        #=======================================================================
+        fs_stub = ComponentTests.FileSystemStub()
+        fs_stub_var = fs_stub._this()
+        
+        self.comp_obj.load(fs_stub_var, "/component_stub.py", CF.LoadableDevice.EXECUTABLE)
+        self.assertEqual(os.path.isfile("component_stub.py"), True) # Technically this is an internal implementation detail that the file is loaded into the CWD of the device
+        
+        pid = self.comp_obj.execute("/component_stub.py", [CF.DataType(id="DCE:72c1c4a9-2bcf-49c5-bafd-ae2c1d567056", value=any.to_any(1.5))],
+                                    [CF.DataType(id="COMPONENT_IDENTIFIER", value=any.to_any("DCE:00000000-0000-0000-0000-000000000000:waveform_1")), 
+                                                               CF.DataType(id="NAME_BINDING", value=any.to_any("MyComponent"))])
+        self.assertNotEqual(pid, 0)
+        
+        affinity = commands.getoutput("taskset -p %d" % pid)
+        self.assertEqual(affinity[-1], "3")
+        
+        self.comp_obj.terminate(pid)
+
+        self.comp_obj.deallocateCapacity([CF.DataType(id="DCE:72c1c4a9-2bcf-49c5-bafd-ae2c1d567056", value=any.to_any(1.5))])
     
     # Create a test file system
     class FileStub(CF__POA.File):

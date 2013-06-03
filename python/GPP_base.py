@@ -438,6 +438,13 @@ class GPP_base(CF__POA.AggregateExecutableDevice,ExecutableDevice, AggregateDevi
                                           action="external",
                                           kinds=("allocation",),
                                           description="""When queired, returns the list of vlans on this host.  When used as an allocation, defines the list of VLANS the component requires.""" 
+                                          ) 
+        processorAllocatedLoadCapacity = simpleseq_property(id_="processorAllocatedLoadCapacity",  
+                                          type_="double",
+                                          defvalue=None,
+                                          mode="readonly",
+                                          action="external",
+                                          kinds=("configure",)
                                           )
         class LoadAverage(object):
             onemin = simple_property(id_="onemin",
