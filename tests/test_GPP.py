@@ -485,6 +485,55 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
             qr = self.comp_obj.query(qr)
             self.assertEqual(qr[0].value.value(), mcastnicEgressCapacity - (i*allocateEgressCapacity))    
     
+    def testNiceAndStackSizeExecute(self):
+        #######################################################################
+        # Launch the device
+        self.runGPP({"DEBUG_LEVEL": 4})
+        
+        #######################################################################
+        # Simulate regular component startup
+        # Verify that initialize nor configure throw errors
+        self.comp_obj.initialize()
+        configureProps = self.getPropertySet(kinds=("configure",), modes=("readwrite", "writeonly"), includeNil=False)
+        self.comp_obj.configure(configureProps)
+        
+	#=======================================================================
+        fs_stub = ComponentTests.FileSystemStub()
+        fs_stub_var = fs_stub._this()
+        
+        self.comp_obj.load(fs_stub_var, "/component_stub.py", CF.LoadableDevice.EXECUTABLE)
+        self.assertEqual(os.path.isfile("component_stub.py"), True) # Technically this is an internal implementation detail that the file is loaded into the CWD of the device
+        
+        pid = self.comp_obj.execute("/component_stub.py", [CF.DataType(id=CF.ExecutableDevice.PRIORITY_ID, value=any.to_any(17)), CF.DataType(id=CF.ExecutableDevice.STACK_SIZE_ID, value=any.to_any(1024))],
+                                    [CF.DataType(id="COMPONENT_IDENTIFIER", value=any.to_any("DCE:00000000-0000-0000-0000-000000000000:waveform_1")), 
+                                                               CF.DataType(id="NAME_BINDING", value=any.to_any("MyComponent"))])
+        self.assertNotEqual(pid, 0)
+        
+        try:
+            pstat = open("/proc/%s/stat" % pid).read()
+            pstat = pstat.split()
+            nice = int(pstat[18])
+            self.assertEqual(nice, 17)
+            
+            soft_limit = None
+            hard_limit = None
+            limits = open("/proc/%s/limits" % pid).readlines()
+            for limit in limits:
+                if limit.startswith("Max stack size"):
+                    limit = limit.split()
+                    try:
+                        soft_limit = int(limit[3])
+                        hard_limit = int(limit[4])
+                    except TypeError:
+                        pass
+            self.assertNotEqual(soft_limit, None)
+            self.assertNotEqual(hard_limit, None)
+            self.assertEqual(soft_limit, 1024)
+            self.assertEqual(hard_limit, 1024)
+        finally:
+            self.comp_obj.terminate(pid)
+        
+
     def testLoadCapacitySandbox(self):
         #######################################################################
         # Launch the device

@@ -220,8 +220,17 @@ class GPP(GPP_base):
                 stdoutanderr = subprocess.PIPE
 
             # TODO in 1.7.2 switch to ossie.utils.Popen
+            def subproc_preexec():
+                os.setpgrp()
+                stack_size = validOptions.get(CF.ExecutableDevice.STACK_SIZE_ID, None)
+                if stack_size != None:
+                    resource.setrlimit(resource.RLIMIT_STACK, (stack_size,stack_size))
+                nice = validOptions.get(CF.ExecutableDevice.PRIORITY_ID, None)
+                if nice != None:
+                    os.nice(nice)
+                    
             try:
-                sp = subprocess.Popen(args, executable=args[0], cwd=os.getcwd(), env=os.environ, close_fds=True, stdin=self._devnull, stdout=stdoutanderr, stderr=subprocess.STDOUT, preexec_fn=os.setpgrp)
+                sp = subprocess.Popen(args, executable=args[0], cwd=os.getcwd(), env=os.environ, close_fds=True, stdin=self._devnull, stdout=stdoutanderr, stderr=subprocess.STDOUT, preexec_fn=subproc_preexec)
             except OSError, e:
                 # CF error codes do not map directly to errno codes, so omit the enumerated value.
                 self._log.error("subprocess.Popen: %s", e.strerror)
