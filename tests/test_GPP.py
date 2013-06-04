@@ -96,7 +96,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
             self.assertEquals(props.has_key(expectedProp.id), True)
         
         qr = [CF.DataType(id="DCE:9190eb70-bd1e-4556-87ee-5a259dcfee39", value=any.to_any(None)), # hostName
-              CF.DataType(id="DCE:7f36cdfb-f828-4e4f-b84f-446e17f1a85b", value=any.to_any(None)), # DeviceKind
+              CF.DataType(id="DCE:cdc5ee18-7ceb-4ae6-bf4c-31f983179b4d", value=any.to_any(None)), # DeviceKind
               CF.DataType(id="DCE:4a23ad60-0b25-4121-a630-68803a498f75", value=any.to_any(None)), # os_name
               CF.DataType(id="DCE:0f3a9a37-a342-43d8-9b7f-78dc6da74192", value=any.to_any(None)), # os_version
               CF.DataType(id="DCE:fefb9c66-d14a-438d-ad59-2cfd1adb272b", value=any.to_any(None)), # processor_name
